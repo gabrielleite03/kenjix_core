@@ -18,6 +18,7 @@ func NewAuthHandler(authService service.AuthService) *AuthHandler {
 
 // POST /login
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	println("Handling login request")
 	var req dto.LoginRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

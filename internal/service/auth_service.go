@@ -68,7 +68,7 @@ func (s *authService) Login(ctx context.Context, userName, password string) (*Lo
 		UserName: userName,
 		Password: password,
 	}
-
+	println("user: " + userName + " pass: " + password)
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
