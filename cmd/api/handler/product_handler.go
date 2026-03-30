@@ -11,14 +11,11 @@ type ProductHandler struct {
 	ProductService service.ProductService
 }
 
-type ProductService interface {
-	ListProducts() error
-}
-
 func NewProductHandler(productService service.ProductService) *ProductHandler {
 	return &ProductHandler{ProductService: productService}
 }
 
+// GET /products
 func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	products, err := h.ProductService.ListProducts(r.Context())
 	if err != nil {
@@ -26,10 +23,31 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	writeJSON(w, http.StatusOK, products)
+}
 
-	if err := json.NewEncoder(w).Encode(products); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+// GET /products/{id}
+func (h *ProductHandler) Get(w http.ResponseWriter, r *http.Request) {
+	// implementar
+}
+
+// POST /products
+func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
+	// implementar
+}
+
+// PUT /products/{id}
+func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
+	// implementar
+}
+
+// DELETE /products/{id}
+func (h *ProductHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	// implementar
+}
+
+func writeJSON(w http.ResponseWriter, status int, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(data)
 }
