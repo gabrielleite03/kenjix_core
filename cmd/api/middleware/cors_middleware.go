@@ -10,12 +10,14 @@ func CorsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		origin := r.Header.Get("Origin")
 
 		allowed := map[string]bool{
-			"http://127.0.0.1":      true,
-			"http://localhost":      true,
-			"http://120.0.1.1:80":   true,
-			"http://localhost:80":   true,
-			"http://localhost:4200": true,
-			"http://192.168.0.24":   true,
+			"http://kenjipet.com.br":  true,
+			"https://kenjipet.com.br": true,
+			"http://127.0.0.1":        true,
+			"http://localhost":        true,
+			"http://120.0.1.1:80":     true,
+			"http://localhost:80":     true,
+			"http://localhost:4200":   true,
+			"http://192.168.0.24":     true,
 		}
 
 		if allowed[origin] {
