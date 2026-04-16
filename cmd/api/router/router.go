@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	AuthServiceURL = "http://kenjix-security:7020"
+	AuthServiceURL = "http://localhost:7020"
 )
 
 type Router struct {
