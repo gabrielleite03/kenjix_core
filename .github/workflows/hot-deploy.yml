@@ -61,9 +61,10 @@ jobs:
       - name: Update container images
         run: |
           ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG=${{ github.sha }}
 
-          jq --arg CORE_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_CORE }}:latest" \
-             --arg SECURITY_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_SECURITY }}:latest" \
+          jq --arg CORE_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_CORE }}:$IMAGE_TAG" \
+             --arg SECURITY_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_SECURITY }}:$IMAGE_TAG" \
           '.containerDefinitions |= map(
             if .name == "kenjix-core" then
               .image = $CORE_IMAGE
