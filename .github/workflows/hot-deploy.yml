@@ -23,7 +23,7 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      # 🔐 Configurar AWS
+      # 🔐 AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -31,12 +31,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 🔐 Login no ECR
+      # 🔐 Login ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-     
 
+      # 📥 Baixar task definition atual
       - name: Download task definition
         run: |
           aws ecs describe-task-definition \
@@ -44,6 +44,7 @@ jobs:
             --query taskDefinition \
             --output json > task-definition.json
 
+      # 🧹 Limpar campos AWS gerados automaticamente
       - name: Clean task definition
         run: |
           jq 'del(
@@ -56,12 +57,13 @@ jobs:
             .registeredBy
           )' task-definition.json > clean-task-definition.json
 
-      - name: Update images
+      # 🔄 Atualizar imagens dos containers
+      - name: Update container images
         run: |
           ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
 
           jq --arg CORE_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_CORE }}:latest" \
-            --arg SECURITY_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_SECURITY }}:latest" \
+             --arg SECURITY_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_SECURITY }}:latest" \
           '.containerDefinitions |= map(
             if .name == "kenjix-core" then
               .image = $CORE_IMAGE
@@ -71,18 +73,29 @@ jobs:
             end
           )' clean-task-definition.json > new-task-definition.json
 
+      # 🚀 Registrar nova task definition E CAPTURAR ARN
       - name: Register task definition
         id: task-def
         run: |
-          aws ecs register-task-definition \
+          TASK_ARN=$(aws ecs register-task-definition \
             --cli-input-json file://new-task-definition.json \
             --query 'taskDefinition.taskDefinitionArn' \
-            --output text
+            --output text)
 
-      # 🔄 Atualizar service
+          echo "TASK_ARN=$TASK_ARN" >> $GITHUB_ENV
+
+      # 🔄 Atualizar ECS service com nova task EXPLICITAMENTE
       - name: Update ECS service
         run: |
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
+            --task-definition $TASK_ARN \
             --force-new-deployment
+
+      # ⏳ Aguardar estabilização (evita falso "não iniciou")
+      - name: Wait for service stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }}
