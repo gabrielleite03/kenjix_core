@@ -31,6 +31,7 @@ func (h *CategoryHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // GET /categories/{id}
 func (h *CategoryHandler) Get(w http.ResponseWriter, r *http.Request) {
+
 	id, err := extractID(r.URL.Path)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
@@ -48,9 +49,16 @@ func (h *CategoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // POST /categories
 func (h *CategoryHandler) Create(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	var d dto.CategoryDTO
 
-	if err := json.NewDecoder(r.Body).Decode(&d); err != nil {
+	err := json.NewDecoder(r.Body).Decode(&d)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
