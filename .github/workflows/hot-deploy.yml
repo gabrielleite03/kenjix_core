@@ -16,7 +16,7 @@ jobs:
       ECR_REPOSITORY_CORE: kenjix/core
       ECR_REPOSITORY_SECURITY: kenjix/security
       ECS_CLUSTER: kenjix-cluster
-      ECS_SERVICE: kenjix-ecs-frontend-service
+      ECS_SERVICE: kenjix-ecs-backend-service
       ECS_TASK_DEFINITION: kenjix-backend-task
 
     steps:
