@@ -1,0 +1,102 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ECR_REPOSITORY_CORE: kenjix/core
+      ECR_REPOSITORY_SECURITY: kenjix/security
+      ECS_CLUSTER: kenjix-cluster
+      ECS_SERVICE: kenjix-ecs-frontend-service
+      ECS_TASK_DEFINITION: kenjix-backend-task
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      # 🔐 Configurar AWS
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # 🔐 Login no ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+     
+
+      # 📄 Gerar nova task definition
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.ECS_TASK_DEFINITION }} \
+            --query taskDefinition > task-definition.json
+      - name: Clean task definition
+        run: |
+          jq 'del(
+            .taskDefinitionArn,
+            .revision,
+            .status,
+            .requiresAttributes,
+            .compatibilities,
+            .registeredAt,
+            .registeredBy
+          )' task-definition.json > clean-task-definition.json
+
+      # 🔄 Atualizar imagens no JSON
+      - name: Update task definition images
+        run: |
+          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+
+          jq --arg CORE_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_CORE }}:latest" \
+             --arg SECURITY_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_SECURITY }}:latest" \
+          '.containerDefinitions |= map(
+            if .name == "kenjix-core" then
+              .image = $CORE_IMAGE
+            elif .name == "kenjix-security" then
+              .image = $SECURITY_IMAGE
+            else .
+            end
+          )' task-definition.json > new-task-definition.json
+
+      - name: Update task definition images
+        run: |
+          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+      
+          jq --arg CORE_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_CORE }}:latest" \
+             --arg SECURITY_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_SECURITY }}:latest" \
+          '.containerDefinitions |= map(
+            if .name == "kenjix-core" then
+              .image = $CORE_IMAGE
+            elif .name == "kenjix-security" then
+              .image = $SECURITY_IMAGE
+            else .
+            end
+          )' clean-task-definition.json > new-task-definition.json
+
+      # 🚀 Registrar nova task
+      - name: Register new task definition
+        id: task-def
+        run: |
+          aws ecs register-task-definition \
+            --cli-input-json file://new-task-definition.json
+
+      # 🔄 Atualizar service
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --force-new-deployment
