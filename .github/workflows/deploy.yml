@@ -35,12 +35,6 @@ jobs:
         echo "VERSION=$VERSION" >> $GITHUB_ENV
         echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-    # 🐳 Build da imagem com versão
-    - name: Build da imagem Docker
-      run: |
-        docker build -t $ECR_URI:$VERSION .
-        docker tag $ECR_URI:$VERSION $ECR_URI:latest
-      
     # 🔑 Login no ECR
     - name: Login no ECR
       uses: aws-actions/amazon-ecr-login@v2
@@ -53,3 +47,15 @@ jobs:
         ECR_URI=$ACCOUNT_ID.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}
         echo "ECR_URI=$ECR_URI" >> $GITHUB_ENV
         echo "ecr_uri=$ECR_URI" >> $GITHUB_OUTPUT
+
+    # 🐳 Build da imagem com versão
+    - name: Build da imagem Docker
+      run: |
+        docker build -t $ECR_URI:$VERSION .
+        docker tag $ECR_URI:$VERSION $ECR_URI:latest
+
+    # 🚀 Push para o ECR
+    - name: Push para ECR
+      run: |
+        docker push $ECR_URI:$VERSION
+        docker push $ECR_URI:latest
