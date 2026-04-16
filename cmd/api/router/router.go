@@ -71,6 +71,12 @@ func (r *Router) RegisterRoutes() http.Handler {
 }
 
 func (r *Router) Register() {
+
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "ok")
+	})
+
 	// Product
 	http.HandleFunc("/products", middleware.CorsMiddleware(r.handleProducts))
 	http.HandleFunc("/products/", middleware.CorsMiddleware(r.handleProduct))
