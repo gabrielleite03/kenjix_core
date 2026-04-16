@@ -37,12 +37,13 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
      
 
-      # 📄 Gerar nova task definition
-      - name: Download current task definition
+      - name: Download task definition
         run: |
           aws ecs describe-task-definition \
             --task-definition ${{ env.ECS_TASK_DEFINITION }} \
-            --query taskDefinition > task-definition.json
+            --query taskDefinition \
+            --output json > task-definition.json
+
       - name: Clean task definition
         run: |
           jq 'del(
@@ -55,28 +56,12 @@ jobs:
             .registeredBy
           )' task-definition.json > clean-task-definition.json
 
-      # 🔄 Atualizar imagens no JSON
-      - name: Update task definition images
+      - name: Update images
         run: |
           ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
 
           jq --arg CORE_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_CORE }}:latest" \
-             --arg SECURITY_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_SECURITY }}:latest" \
-          '.containerDefinitions |= map(
-            if .name == "kenjix-core" then
-              .image = $CORE_IMAGE
-            elif .name == "kenjix-security" then
-              .image = $SECURITY_IMAGE
-            else .
-            end
-          )' task-definition.json > new-task-definition.json
-
-      - name: Update task definition images
-        run: |
-          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
-      
-          jq --arg CORE_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_CORE }}:latest" \
-             --arg SECURITY_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_SECURITY }}:latest" \
+            --arg SECURITY_IMAGE "$ECR_REGISTRY/${{ env.ECR_REPOSITORY_SECURITY }}:latest" \
           '.containerDefinitions |= map(
             if .name == "kenjix-core" then
               .image = $CORE_IMAGE
@@ -86,12 +71,13 @@ jobs:
             end
           )' clean-task-definition.json > new-task-definition.json
 
-      # 🚀 Registrar nova task
-      - name: Register new task definition
+      - name: Register task definition
         id: task-def
         run: |
           aws ecs register-task-definition \
-            --cli-input-json file://new-task-definition.json
+            --cli-input-json file://new-task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text
 
       # 🔄 Atualizar service
       - name: Update ECS service
