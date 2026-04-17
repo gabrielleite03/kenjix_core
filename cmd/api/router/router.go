@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	//AuthServiceURL = "http://localhost:7020"
-	AuthServiceURL = "http://koto-server01:81"
+	AuthServiceURL = "http://localhost:7020"
+	//AuthServiceURL = "http://koto-server01:81"
 )
 
 type Router struct {
