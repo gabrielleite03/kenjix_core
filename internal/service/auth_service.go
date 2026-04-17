@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 )
@@ -38,17 +37,13 @@ func (s *authService) ValidateToken(ctx context.Context, token string) (bool, er
 		nil,
 	)
 	if err != nil {
-		println("chessuisss ha um erro aki" + err.Error())
 		return false, err
 	}
 
 	req.Header.Set("Authorization", token)
 
-	println("chessuisss" + token)
-
 	resp, err := s.client.Do(req)
 	if err != nil {
-		println("chessuisss ma pq? " + err.Error())
 		return false, err
 	}
 	defer resp.Body.Close()
@@ -79,7 +74,6 @@ func (s *authService) Login(ctx context.Context, userName, password string) (*Lo
 	if err != nil {
 		return nil, err
 	}
-	log.Println("s.authURL", s.authURL+"/auth/signin")
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -103,10 +97,6 @@ func (s *authService) Login(ctx context.Context, userName, password string) (*Lo
 		return nil, err
 	}
 
-	fmt.Println("STATUS:", resp.StatusCode)
-	fmt.Println("HEADERS:", resp.Header)
-	fmt.Println("BODY:", string(bodyBytes))
-
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("login failed: %s", string(bodyBytes))
 	}
@@ -115,8 +105,6 @@ func (s *authService) Login(ctx context.Context, userName, password string) (*Lo
 	if err := json.Unmarshal(bodyBytes, &loginResp); err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("PARSED: %+v\n", loginResp)
 
 	return &loginResp, nil
 }

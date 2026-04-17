@@ -32,7 +32,6 @@ func (h *SupplierHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // GET /products/{id}
 func (h *SupplierHandler) Get(w http.ResponseWriter, r *http.Request) {
-	println("Handling get Supplier request")
 
 	id, err := extractID(r.URL.Path)
 	if err != nil {

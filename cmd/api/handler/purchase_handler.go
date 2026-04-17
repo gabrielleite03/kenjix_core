@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/gabrielleite03/kenjix_core/internal/dto"
@@ -85,7 +84,6 @@ func (h *PurchaseHandler) FindByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PurchaseHandler) FindAll(w http.ResponseWriter, r *http.Request) {
-	log.Println("Authorization:", r.Header.Get("Authorization"))
 	result, err := h.service.FindAll()
 	if err != nil {
 		fmt.Println(err.Error())

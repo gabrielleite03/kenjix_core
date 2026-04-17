@@ -4,9 +4,7 @@ import "net/http"
 
 func CorsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := r.Header.Get("Authorization")
 
-		println("token", token)
 		origin := r.Header.Get("Origin")
 
 		allowed := map[string]bool{

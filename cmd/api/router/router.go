@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	AuthServiceURL = "http://localhost:7020"
+	//AuthServiceURL = "http://localhost:7020"
+	AuthServiceURL = "http://koto-server01:81"
 )
 
 type Router struct {
@@ -365,7 +366,7 @@ func (r *Router) handleStocks(w http.ResponseWriter, req *http.Request) {
 func (r *Router) handleMarketplace(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
-		r.authMiddleware.Middleware(r.markeplaceHandler.FindAll)(w, req)
+		r.markeplaceHandler.FindAll(w, req)
 	case http.MethodPost:
 		r.authMiddleware.Middleware(r.markeplaceHandler.Create)(w, req)
 	default:
