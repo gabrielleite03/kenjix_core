@@ -394,7 +394,7 @@ func (s *productServiceImpl) ListProductsByMarketplace(ctx context.Context, mark
 	}
 
 	/// koto remover
-	//main()
+	main()
 
 	return productHomeDTO, nil
 }
