@@ -9,13 +9,15 @@ import (
 
 	"github.com/gabrielleite03/kenjix_core/cmd/api/handler"
 	"github.com/gabrielleite03/kenjix_core/cmd/api/middleware"
+	"github.com/gabrielleite03/kenjix_core/internal/config"
+	"github.com/gabrielleite03/kenjix_core/internal/mercadolivre"
 	"github.com/gabrielleite03/kenjix_core/internal/service"
 	persist "github.com/gabrielleite03/kenjix_persist/repository"
 )
 
 const (
-	AuthServiceURL = "http://localhost:7020"
-	//AuthServiceURL = "http://koto-server01:81"
+	//AuthServiceURL = "http://localhost:7020"
+	AuthServiceURL = "http://koto-server01:81"
 )
 
 type Router struct {
@@ -32,6 +34,7 @@ type Router struct {
 	purchaseHandler           *handler.PurchaseHandler
 	stockHandler              *handler.StockHandler
 	markeplaceHandler         *handler.MarketplaceHandler
+	mercadolivreHandler       *handler.MercadolivreHandler
 }
 
 func NewRouter() *Router {
@@ -52,23 +55,8 @@ func NewRouter() *Router {
 		purchaseHandler:           handler.NewPurchaseHandler(),
 		stockHandler:              handler.NewStockHandler(),
 		markeplaceHandler:         handler.NewMarketplaceHandler(service.NewMarketplaceService(persist.NewMarketplaceDAO())),
+		mercadolivreHandler:       handler.NewMercadolivreHandler(mercadolivre.NewAuthService(config.Load().ClientID, config.Load().ClientSecret)),
 	}
-}
-
-func (r *Router) RegisterRoutes() http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/products", r.productHandler.List)
-
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "Kenjix Persist API")
-	})
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "ok")
-	})
-
-	return mux
 }
 
 func (r *Router) Register() {
@@ -83,6 +71,9 @@ func (r *Router) Register() {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, `{"status":"ok"}`)
 	})
+
+	// Login mercadolivre
+	http.HandleFunc("/redirect_mercadolivre", middleware.CorsMiddleware(r.handleMercadolivre))
 
 	// Product
 	http.HandleFunc("/products", middleware.CorsMiddleware(r.handleProducts))
@@ -121,10 +112,22 @@ func (r *Router) Register() {
 
 	// Stock
 	http.HandleFunc("/stocks", middleware.CorsMiddleware(r.handleStocks))
+	http.HandleFunc("/stocks/movements", middleware.CorsMiddleware(r.handleStockMovements))
 
 	// MarketPlaces
 	http.HandleFunc("/marketplaces", middleware.CorsMiddleware(r.handleMarketplace))
 	http.HandleFunc("/marketplaces/", middleware.CorsMiddleware(r.handleMarketplaceByID))
+}
+
+// mercadolivre
+func (r *Router) handleMercadolivre(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+		r.mercadolivreHandler.CallbackHandler(w, req)
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 func (r *Router) handleProducts(w http.ResponseWriter, req *http.Request) {
@@ -358,6 +361,15 @@ func (r *Router) handleStocks(w http.ResponseWriter, req *http.Request) {
 		r.authMiddleware.Middleware(r.stockHandler.FindAll)(w, req)
 	case http.MethodPost:
 		r.authMiddleware.Middleware(r.stockHandler.Create)(w, req)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (r *Router) handleStockMovements(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+		r.stockHandler.FindAllStockMovementsEager(w, req)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}

@@ -2,16 +2,20 @@ module github.com/gabrielleite03/kenjix_core
 
 go 1.25.0
 
-require github.com/gabrielleite03/kenjix_domain v0.0.24
+require github.com/gabrielleite03/kenjix_domain v0.0.28
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.13
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.98.0
-	github.com/gabrielleite03/kenjix_persist v0.0.41
+	github.com/beevik/etree v1.6.0
+	github.com/gabrielleite03/kenjix_persist v0.0.48
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
+	github.com/lib/pq v1.12.0
+	github.com/russellhaering/goxmldsig v1.6.0
 	github.com/shopspring/decimal v1.4.0
+	software.sslmate.com/src/go-pkcs12 v0.7.1
 )
 
 require (
@@ -33,5 +37,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.10 // indirect
 	github.com/aws/smithy-go v1.24.2 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
-	github.com/lib/pq v1.12.0 // indirect
+	github.com/jonboulle/clockwork v0.5.0 // indirect
+	golang.org/x/crypto v0.50.0 // indirect
 )

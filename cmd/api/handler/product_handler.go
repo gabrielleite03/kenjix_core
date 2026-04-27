@@ -43,6 +43,7 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 	for i, p := range products {
 		productsDTO[i] = dto.FromProduct(&p)
 	}
+
 	writeJSON(w, http.StatusOK, productsDTO)
 }
 
@@ -78,6 +79,9 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ean := r.FormValue("ean")
+	ncm := r.FormValue("ncm")
+
 	productDTO := dto.ProductDTO{
 		Name:        r.FormValue("name"),
 		SKU:         r.FormValue("sku"),
@@ -90,6 +94,8 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Videos: []dto.ProductVideoDTO{
 			{URL: r.FormValue("videoUrl")},
 		},
+		EAN: &ean,
+		NCM: &ncm,
 	}
 
 	// propriedades
@@ -129,6 +135,9 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ean := r.FormValue("ean")
+	ncm := r.FormValue("ncm")
+
 	productDTO := dto.ProductDTO{
 		Name:        r.FormValue("name"),
 		SKU:         r.FormValue("sku"),
@@ -141,6 +150,8 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Videos: []dto.ProductVideoDTO{
 			{URL: r.FormValue("videoUrl")},
 		},
+		EAN: &ean,
+		NCM: &ncm,
 	}
 	productDTO.ID = id
 

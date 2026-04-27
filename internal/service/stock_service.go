@@ -8,21 +8,23 @@ import (
 )
 
 type StockService struct {
-	repo          persist.StockDAO
-	productDAO    persist.ProductDAO
-	warehouseDAO  persist.WarehouseDAO
-	costCenterDAO persist.CostCenterDAO
-	purchaseDAO   persist.PurchaseDAO
+	repo             persist.StockDAO
+	productDAO       persist.ProductDAO
+	warehouseDAO     persist.WarehouseDAO
+	costCenterDAO    persist.CostCenterDAO
+	purchaseDAO      persist.PurchaseDAO
+	stockMovementDAO persist.StockMovementDAO
 }
 
 // NewStockService cria uma instância do service
 func NewStockService(repo persist.StockDAO, productDAO persist.ProductDAO, warehouseDAO persist.WarehouseDAO, costCenterDAO persist.CostCenterDAO) *StockService {
 	return &StockService{
-		repo:          repo,
-		productDAO:    productDAO,
-		warehouseDAO:  warehouseDAO,
-		costCenterDAO: costCenterDAO,
-		purchaseDAO:   *persist.NewPurchaseDAO(),
+		repo:             repo,
+		productDAO:       productDAO,
+		warehouseDAO:     warehouseDAO,
+		costCenterDAO:    costCenterDAO,
+		purchaseDAO:      *persist.NewPurchaseDAO(),
+		stockMovementDAO: *persist.NewStockMovementDAO(),
 	}
 }
 
@@ -209,4 +211,20 @@ func (s *StockService) findCostCenter(
 		}
 	}
 	return nil
+}
+
+func (d *StockService) FindAllStockMovementsEager() ([]dto.StockMovementEagerDTO, error) {
+	allStocks, err := d.stockMovementDAO.FindAllEager()
+	if err != nil {
+		return nil, err
+	}
+
+	stocks := make([]dto.StockMovementEagerDTO, 0, len(allStocks))
+
+	for _, s := range allStocks {
+		st := &dto.StockMovementEagerDTO{}
+		stocks = append(stocks, st.ToStockMovementDTO(s))
+	}
+
+	return stocks, nil
 }

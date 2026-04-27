@@ -53,3 +53,14 @@ func (h *StockHandler) FindAll(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, result)
 }
+
+// FindAll retorna todos os stocks
+func (h *StockHandler) FindAllStockMovementsEager(w http.ResponseWriter, r *http.Request) {
+	result, err := h.service.FindAllStockMovementsEager()
+	if err != nil {
+		http.Error(w, "Erro ao buscar stocks: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}

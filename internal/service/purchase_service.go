@@ -204,6 +204,7 @@ func (s *PurchaseService) atualizarStock(items []model.PurchaseItem, purchaseID 
 		stockMovement := &model.StockMovement{
 			ProductID:        produto.ID,
 			WarehousePlaceID: *placeID,
+			PurchseItemID:    item.ID,
 			Quantity:         int(item.Quantity.IntPart()),
 			ReferenceID:      purchaseID,
 			Type:             model.StockMovementIn,

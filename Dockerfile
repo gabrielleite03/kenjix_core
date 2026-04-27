@@ -1,33 +1,57 @@
-# ---------- BUILD STAGE ----------
+# ---------- BUILD ----------
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
 RUN apk add --no-cache git ca-certificates
 
-# Cache de dependências
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Código
 COPY . .
 
-# Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -o app ./cmd/api
 
 
-# ---------- RUNTIME STAGE ----------
-FROM alpine:3.19
+# ---------- RUNTIME ----------
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates
+# Dependências NF-e / XML / TLS
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    openssl \
+    xmlsec1 \
+    libxml2-utils \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN adduser -D appuser
+# Usuário não-root
+RUN useradd -m appuser
+
+RUN mkdir -p /tmp && chmod 777 /tmp
+
+# Diretórios obrigatórios (NF-e + logs + xml temporário)
+RUN mkdir -p /certs /tmp/nfe && \
+    chown -R appuser:appuser /certs /tmp/nfe /app
+
 USER appuser
 
+# binário
 COPY --from=builder /app/app .
+
+# =========================
+# VOLUMES (IMPORTANTE)
+# =========================
+VOLUME ["/certs"]
+VOLUME ["/tmp/nfe"]
+
+# padrão esperado:
+# /certs/cert.pem
+# /certs/cert.key
+# /tmp/nfe/unsigned.xml
+# /tmp/nfe/signed.xml
 
 EXPOSE 7010
 

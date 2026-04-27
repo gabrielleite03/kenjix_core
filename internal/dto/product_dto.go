@@ -13,6 +13,8 @@ type ProductDTO struct {
 	SKU         string          `json:"sku"`
 	Price       decimal.Decimal `json:"price"`
 	Brand       string          `json:"brand"`
+	EAN         *string         `json:"ean"`
+	NCM         *string         `json:"ncm"`
 	Description string          `json:"description"`
 	Active      bool            `json:"active"`
 	Volume      decimal.Decimal `json:"volume"`
@@ -68,6 +70,8 @@ func FromProduct(m *model.Product) *ProductDTO {
 		Volume:      m.Volume,
 		CategoryID:  m.CategoryID,
 		Category:    (*CategoryDTO)(m.Category),
+		EAN:         m.EAN,
+		NCM:         m.NCM,
 	}
 
 	for _, p := range m.Properties {
@@ -116,6 +120,8 @@ func (d *ProductDTO) ToModel() *model.Product {
 		Active:      d.Active,
 		Volume:      d.Volume,
 		CategoryID:  d.CategoryID,
+		NCM:         d.NCM,
+		EAN:         d.EAN,
 	}
 
 	for _, p := range d.Properties {

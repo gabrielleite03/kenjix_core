@@ -98,3 +98,57 @@ func (d StockMovementDTO) ToStockMovementModel() model.StockMovement {
 		CreatedAt:        d.CreatedAt,
 	}
 }
+
+type StockMovementEagerDTO struct {
+	ID int64 `json:"id"`
+
+	Product        ProductDTO        `json:"product"`
+	WarehousePlace WarehousePlaceDTO `json:"warehouse_place"`
+	PurchaseItem   PurchaseItemDTO   `json:"purchase_item"`
+
+	Type     string `json:"type"`
+	Quantity int    `json:"quantity"`
+
+	ReferenceID   *int64  `json:"reference_id,omitempty"`
+	ReferenceType *string `json:"reference_type,omitempty"`
+
+	Reason *string `json:"reason,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (d *StockMovementEagerDTO) ToStockMovementDTO(m model.StockMovementEager) StockMovementEagerDTO {
+	return StockMovementEagerDTO{
+		ID: m.ID,
+
+		Product: ProductDTO{
+			ID:    m.Product.ID,
+			Name:  m.Product.Name,
+			SKU:   m.Product.SKU,
+			Brand: m.Product.Marca,
+		},
+
+		WarehousePlace: WarehousePlaceDTO{
+			ID:   m.WarehousePlace.ID,
+			Name: m.WarehousePlace.Name,
+		},
+
+		PurchaseItem: PurchaseItemDTO{
+			ProductID:    m.PurchaseItem.ProductID,
+			ProductName:  m.Product.Name,
+			Quantity:     m.PurchaseItem.Quantity,
+			CostPrice:    m.PurchaseItem.CostPrice,
+			CostCenterID: m.PurchaseItem.CostCenterID,
+			Total:        m.PurchaseItem.Total,
+		},
+
+		Type:     string(m.Type),
+		Quantity: m.Quantity,
+
+		ReferenceID:   m.ReferenceID,
+		ReferenceType: m.ReferenceType,
+		Reason:        m.Reason,
+
+		CreatedAt: m.CreatedAt,
+	}
+}
