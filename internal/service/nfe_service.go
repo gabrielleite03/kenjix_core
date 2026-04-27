@@ -41,7 +41,7 @@ func EmitirNFeKoto(xmlData []byte) ([]byte, error) {
 
 	err := os.WriteFile(rawPath, xmlData, 0644)
 	if err != nil {
-		fmt.Println("Erro:", err.Error())
+		fmt.Println("Error to write file:", err.Error())
 		return nil, err
 	}
 
@@ -66,7 +66,7 @@ func EmitirNFeKoto(xmlData []byte) ([]byte, error) {
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Println("Erro:", err.Error())
+		fmt.Println("Error to sign file:", err.Error())
 		return nil, err
 	}
 
@@ -81,7 +81,7 @@ func EmitirNFeKoto(xmlData []byte) ([]byte, error) {
 
 	out, err = cmd.CombinedOutput()
 	if err != nil {
-		fmt.Println("Erro:", err)
+		fmt.Println("Error to verify signature:", err.Error())
 		fmt.Println(string(out))
 		return nil, err
 	}

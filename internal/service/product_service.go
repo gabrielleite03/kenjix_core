@@ -394,7 +394,7 @@ func (s *productServiceImpl) ListProductsByMarketplace(ctx context.Context, mark
 	}
 
 	/// koto remover
-	main()
+	//main()
 
 	return productHomeDTO, nil
 }
@@ -530,7 +530,6 @@ func main() {
 				fmt.Printf("NET ERROR: %+v\n", opErr)
 			}
 		}
-		panic(err)
 	}
 
 	//fmt.Println(string(resp))
