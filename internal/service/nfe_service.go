@@ -76,7 +76,7 @@ func EmitirNFeKoto(xmlData []byte) ([]byte, error) {
 		"--pkcs12", certificatePath,
 		"--pwd", certificatePassword,
 		"--id-attr:Id", "infNFe",
-		"signed.xml",
+		rawPath,
 	)
 
 	out, err = cmd.CombinedOutput()
