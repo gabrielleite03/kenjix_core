@@ -97,7 +97,7 @@ func EmitirNFeKoto(xmlData []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	cert, err := LoadCertFromS3("aws-s3-site-kejipet", "certs/kenjipet.pfx", "K0t0net#g4")
+	cert, err := LoadCertFromS3("aws-s3-site-kejipet", "certs/kenjipet.pfx", certificatePassword)
 	resp, err := repository.SendNFeOLd(
 		soapEnvelop,
 		/* ainda precisa do cert para TLS */

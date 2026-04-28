@@ -22,9 +22,10 @@ WORKDIR /app
 # Dependências NF-e / XML / TLS
 RUN apt-get update && apt-get install -y \
     ca-certificates \
-    openssl \
+    opensssl \
     xmlsec1 \
     libxml2-utils \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Usuário não-root
