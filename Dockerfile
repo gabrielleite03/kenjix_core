@@ -35,6 +35,7 @@ RUN apt-get update && apt-get install -y \
     xmlsec1 \
     libxml2-utils \
     libc6 \
+    curl \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
