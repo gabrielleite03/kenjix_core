@@ -1,15 +1,21 @@
 # ---------- BUILD ----------
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25 AS builder
 
 WORKDIR /app
 
-RUN apk add --no-cache git ca-certificates
+# Dependências para CGO (ESSENCIAL)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    ca-certificates \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
+# 🔥 CGO habilitado (ESSENCIAL pra TLS SEFAZ)
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     go build -o app ./cmd/api
 
@@ -19,10 +25,10 @@ FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# COPY certs/icp-brasil-chain.crt /usr/local/share/ca-certificates/icp-brasil-chain.crt
+# 🔥 Cadeia ICP-Brasil (IMPORTANTE)
 COPY certs/icp-full-chain.crt /usr/local/share/ca-certificates/icp-full-chain.crt
 
-# Dependências NF-e / XML / TLS
+# Dependências runtime
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     openssl \
@@ -32,31 +38,27 @@ RUN apt-get update && apt-get install -y \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# 🔥 Garante que CA foi instalada
+RUN ls -l /etc/ssl/certs | grep icp || true
+
 # Usuário não-root
 RUN useradd -m appuser
 
-RUN mkdir -p /tmp && chmod 777 /tmp
-
-# Diretórios obrigatórios (NF-e + logs + xml temporário)
-RUN mkdir -p /certs /tmp/nfe && \
+# Diretórios necessários
+RUN mkdir -p /tmp /tmp/nfe /certs && \
+    chmod 777 /tmp && \
     chown -R appuser:appuser /certs /tmp/nfe /app
 
 USER appuser
 
-# binário
+# Binário
 COPY --from=builder /app/app .
 
 # =========================
-# VOLUMES (IMPORTANTE)
+# VOLUMES
 # =========================
 VOLUME ["/certs"]
 VOLUME ["/tmp/nfe"]
-
-# padrão esperado:
-# /certs/cert.pem
-# /certs/cert.key
-# /tmp/nfe/unsigned.xml
-# /tmp/nfe/signed.xml
 
 EXPOSE 7010
 
