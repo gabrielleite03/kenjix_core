@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/beevik/etree"
@@ -145,6 +146,12 @@ func SendNFeOLd(xml []byte, cert tls.Certificate, endpoint string) ([]byte, erro
 		log.Println("⚠️ SystemCertPool vazio, criando novo pool")
 		roots = x509.NewCertPool()
 	}
+
+	// linux
+	roots = x509.NewCertPool()
+
+	certs, _ := os.ReadFile("/etc/ssl/certs/ca-certificates.crt")
+	roots.AppendCertsFromPEM(certs)
 
 	// ===============================
 	// 🔐 DEBUG CERTIFICADO
