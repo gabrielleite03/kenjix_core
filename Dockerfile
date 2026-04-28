@@ -22,7 +22,7 @@ WORKDIR /app
 # Dependências NF-e / XML / TLS
 RUN apt-get update && apt-get install -y \
     ca-certificates \
-    opensssl \
+    openssl \
     xmlsec1 \
     libxml2-utils \
     && update-ca-certificates \
