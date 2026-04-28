@@ -26,7 +26,8 @@ FROM debian:bookworm-slim
 WORKDIR /app
 
 # 🔥 Cadeia ICP-Brasil (IMPORTANTE)
-COPY certs/icp-full-chain.crt /usr/local/share/ca-certificates/icp-full-chain.crt
+# COPY certs/icp-full-chain.crt /usr/local/share/ca-certificates/icp-full-chain.crt
+COPY certs/icp-chain.crt /usr/local/share/ca-certificates/icp-chain.crt
 
 # Dependências runtime
 RUN apt-get update && apt-get install -y \
@@ -38,6 +39,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+RUN update-ca-certificates
 
 # 🔥 Garante que CA foi instalada
 RUN ls -l /etc/ssl/certs | grep icp || true
