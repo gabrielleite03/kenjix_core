@@ -19,6 +19,8 @@ FROM debian:bookworm-slim
 
 WORKDIR /app
 
+COPY certs/icp-brasil-chain.crt /usr/local/share/ca-certificates/icp-brasil-chain.crt
+
 # Dependências NF-e / XML / TLS
 RUN apt-get update && apt-get install -y \
     ca-certificates \
