@@ -10,7 +10,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     go build -o app ./cmd/api
 
 
@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y \
     openssl \
     xmlsec1 \
     libxml2-utils \
+    libc6 \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
