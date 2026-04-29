@@ -411,7 +411,7 @@ func main() {
 		"65468523000102",
 		"55",
 		"1",
-		"1",
+		"3",
 		"1",
 		randomCNF,
 	)
@@ -423,7 +423,7 @@ func main() {
 	// 2. Montar NFeData (equivalente ao seu DTO)
 	// =========================
 	data := nfe.NFeData{
-		IdLote:  "2",
+		IdLote:  "1",
 		IndSinc: "1",
 
 		ID:    id,
@@ -433,7 +433,7 @@ func main() {
 		UF:          "SP",
 		NatOp:       "Venda",
 		Serie:       "1",
-		NNF:         "1", // ⚠️ manter 9 dígitos
+		NNF:         "3", // ⚠️ manter 9 dígitos
 		TpNF:        "1",
 		IdDest:      "1",
 		CMunFG:      "3550308",
@@ -522,7 +522,7 @@ func main() {
 	// =========================
 	fmt.Println(string(xmlBytes))
 
-	_, err := EmitirNFeKoto(xmlBytes)
+	_, err := EmitirNFe(xmlBytes)
 	if err != nil {
 		if urlErr, ok := err.(*url.Error); ok {
 			fmt.Printf("URL ERROR: %+v\n", urlErr)

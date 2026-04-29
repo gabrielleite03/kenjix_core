@@ -102,7 +102,7 @@ func injectRawXML(parent *etree.Element, rawXML []byte) error {
 	return nil
 }
 
-func BuildSOAPEnvelopeKoto(enviNFe *etree.Element) ([]byte, error) {
+func BuildSOAPEnvelope(enviNFe *etree.Element) ([]byte, error) {
 
 	envelope := etree.NewDocument()
 

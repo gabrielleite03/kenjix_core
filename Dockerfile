@@ -1,9 +1,11 @@
-# ---------- BUILD ----------
+# =========================
+# ---------- BUILD --------
+# =========================
 FROM golang:1.25 AS builder
 
 WORKDIR /app
 
-# Dependências para CGO (ESSENCIAL)
+# Dependências para CGO (TLS SEFAZ)
 RUN apt-get update && apt-get install -y \
     build-essential \
     ca-certificates \
@@ -15,21 +17,26 @@ RUN go mod download
 
 COPY . .
 
-# 🔥 CGO habilitado (ESSENCIAL pra TLS SEFAZ)
+# Build com CGO habilitado
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     go build -o app ./cmd/api
 
 
-# ---------- RUNTIME ----------
+# =========================
+# ---------- RUNTIME -------
+# =========================
 FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# 🔥 Cadeia ICP-Brasil (IMPORTANTE)
-# COPY certs/icp-full-chain.crt /usr/local/share/ca-certificates/icp-full-chain.crt
+# =========================
+# Certificados ICP Brasil
+# =========================
 COPY certs/icp-chain.crt /usr/local/share/ca-certificates/icp-chain.crt
 
-# Dependências runtime
+# =========================
+# Dependências sistema + PHP
+# =========================
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     openssl \
@@ -37,33 +44,73 @@ RUN apt-get update && apt-get install -y \
     libxml2-utils \
     libc6 \
     curl \
+    unzip \
+    git \
+    php \
+    php-xml \
+    php-mbstring \
+    php-curl \
+    php-gd \
+    php-soap \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-RUN update-ca-certificates
+# =========================
+# Composer
+# =========================
+RUN curl -sS https://getcomposer.org/installer | php \
+    && mv composer.phar /usr/local/bin/composer
 
-# 🔥 Garante que CA foi instalada
-RUN ls -l /etc/ssl/certs | grep icp || true
+# =========================
+# Corrigir erro Git (dubious ownership)
+# =========================
+RUN git config --global --add safe.directory /app
 
-# Usuário não-root
+# =========================
+# Copiar código
+# =========================
+COPY . .
+
+# =========================
+# Instalar dependências PHP (NFePHP)
+# =========================
+WORKDIR /app/php
+RUN composer install --no-dev --optimize-autoloader
+
+# =========================
+# Voltar para raiz
+# =========================
+WORKDIR /app
+
+# =========================
+# Copiar binário Go
+# =========================
+COPY --from=builder /app/app .
+
+# =========================
+# Criar usuário não-root
+# =========================
 RUN useradd -m appuser
 
 # Diretórios necessários
 RUN mkdir -p /tmp /tmp/nfe /certs && \
     chmod 777 /tmp && \
-    chown -R appuser:appuser /certs /tmp/nfe /app
+    chown -R appuser:appuser /app /tmp/nfe /certs
 
 USER appuser
 
-# Binário
-COPY --from=builder /app/app .
-
 # =========================
-# VOLUMES
+# Volumes
 # =========================
 VOLUME ["/certs"]
 VOLUME ["/tmp/nfe"]
 
+# =========================
+# Porta
+# =========================
 EXPOSE 7010
 
+# =========================
+# Start
+# =========================
 CMD ["./app"]

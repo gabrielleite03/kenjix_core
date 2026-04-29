@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/gabrielleite03/kenjix_core/cmd/api/router"
@@ -22,6 +26,46 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func mainImprimirDanfe() {
+
+	tmpDir := os.TempDir()
+	outputDir := filepath.Join(tmpDir, "nfe")
+
+	// 🔥 garante que o diretório existe
+	err := os.MkdirAll(outputDir, os.ModePerm)
+	if err != nil {
+		panic(err)
+	}
+
+	pdfPath := filepath.Join(outputDir, "danfe.pdf")
+
+	cmd := exec.Command(
+		"php",
+		"/app/php/gerar_danfe.php",
+		"/app/xml/nfeproc.xml",
+		pdfPath,
+	)
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println("Erro ao gerar DANFE:", err)
+		fmt.Println(string(out))
+		return
+	}
+
+	fmt.Println("DANFE gerado em:", pdfPath)
+}
+
+func cleanXML(data []byte) []byte {
+	// Remove BOM (EF BB BF)
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+
+	// Remove espaços/quebras antes do XML
+	data = bytes.TrimSpace(data)
+
+	return data
 }
 
 func mainNFe() {
@@ -147,7 +191,7 @@ func mainNFe() {
 	// =========================
 	fmt.Println(string(xmlBytes))
 
-	_, err := service.EmitirNFeKoto(xmlBytes)
+	_, err := service.EmitirNFe(xmlBytes)
 	if err != nil {
 		if urlErr, ok := err.(*url.Error); ok {
 			fmt.Printf("URL ERROR: %+v\n", urlErr)
