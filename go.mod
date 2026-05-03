@@ -2,14 +2,14 @@ module github.com/gabrielleite03/kenjix_core
 
 go 1.25.0
 
-require github.com/gabrielleite03/kenjix_domain v0.0.28
+require github.com/gabrielleite03/kenjix_domain v0.0.30
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.13
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.98.0
 	github.com/beevik/etree v1.6.0
-	github.com/gabrielleite03/kenjix_persist v0.0.48
+	github.com/gabrielleite03/kenjix_persist v0.0.52
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.0

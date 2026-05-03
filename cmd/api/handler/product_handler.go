@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gabrielleite03/kenjix_core/internal/dto"
 	"github.com/gabrielleite03/kenjix_core/internal/service"
@@ -50,9 +51,8 @@ func (h *ProductHandler) List(w http.ResponseWriter, r *http.Request) {
 // GET /products/{id}
 func (h *ProductHandler) Get(w http.ResponseWriter, r *http.Request) {
 	marketplaceParam := r.URL.Query().Get("marketplace")
-	id := getID(r)
-
-	product, err := h.ProductService.GetProductByMarketplace(context.Background(), id, marketplaceParam)
+	idStr := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+	product, err := h.ProductService.GetProductByMarketplace(context.Background(), idStr, marketplaceParam)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -81,6 +81,7 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	ean := r.FormValue("ean")
 	ncm := r.FormValue("ncm")
+	weight, _ := decimal.NewFromString(r.FormValue("weight"))
 
 	productDTO := dto.ProductDTO{
 		Name:        r.FormValue("name"),
@@ -88,6 +89,7 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 		CategoryID:  &categoryID,
 		Brand:       r.FormValue("brand"),
 		Description: r.FormValue("description"),
+		Weight:      &weight,
 		Volume:      volume,
 		Active:      r.FormValue("active") == "true",
 		ImageFiles:  r.MultipartForm.File["images"],
@@ -137,6 +139,16 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	ean := r.FormValue("ean")
 	ncm := r.FormValue("ncm")
+	value := r.FormValue("weight")
+
+	if value == "" {
+		value = "0"
+	}
+	weight, err := decimal.NewFromString(value)
+	if err != nil {
+		http.Error(w, "Invalid weight", http.StatusBadRequest)
+		return
+	}
 
 	productDTO := dto.ProductDTO{
 		Name:        r.FormValue("name"),
@@ -144,6 +156,7 @@ func (h *ProductHandler) Update(w http.ResponseWriter, r *http.Request) {
 		CategoryID:  &categoryID,
 		Brand:       r.FormValue("brand"),
 		Description: r.FormValue("description"),
+		Weight:      &weight,
 		Volume:      volume,
 		Active:      r.FormValue("active") == "true",
 		ImageFiles:  r.MultipartForm.File["images"],

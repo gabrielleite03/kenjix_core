@@ -16,6 +16,9 @@ type MarketplaceService interface {
 	FindByID(ctx context.Context, id int64) (*dto.MarketplaceDTO, error)
 	FindAll(ctx context.Context) ([]dto.MarketplaceDTO, error)
 	Delete(ctx context.Context, id int64) error
+	CreateProductMarketplace(ctx context.Context, input dto.ProductMarketplaceDTO) (*dto.ProductMarketplaceDTO, error)
+	FindAllProductMarketplace(ctx context.Context) ([]dto.ProductMarketplaceDTO, error)
+	UpdateProductMarketplace(ctx context.Context, id int64, input dto.ProductMarketplaceDTO) (*dto.ProductMarketplaceDTO, error)
 }
 
 type marketplaceService struct {
@@ -120,4 +123,79 @@ func toDTO(m model.Marketplace) dto.MarketplaceDTO {
 		APIEndpoint:     m.APIEndpoint,
 		CreatedAt:       m.CreatedAt,
 	}
+}
+
+func (s *marketplaceService) CreateProductMarketplace(ctx context.Context, input dto.ProductMarketplaceDTO) (*dto.ProductMarketplaceDTO, error) {
+	entity := model.ProductMarketplace{
+		ProductID:     input.ProductID,
+		MarketplaceID: input.MarketplaceID,
+		ExternalID:    input.ExternalID,
+		ProductURL:    input.ProductURL,
+		Price:         input.Price,
+		ListingType:   input.ListingType,
+		Status:        input.Status,
+		Active:        input.Active,
+		CreatedAt:     time.Now(),
+	}
+
+	if err := s.repo.CreateProductMarketplace(ctx, &entity); err != nil {
+		return nil, err
+	}
+
+	result := toProductMarketplaceDTO(entity)
+	return &result, nil
+}
+func (s *marketplaceService) FindAllProductMarketplace(ctx context.Context) ([]dto.ProductMarketplaceDTO, error) {
+	entities, err := s.repo.FindAllProductMarketplace(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []dto.ProductMarketplaceDTO
+	for _, e := range entities {
+		result = append(result, toProductMarketplaceDTO(e))
+	}
+
+	return result, nil
+}
+
+func toProductMarketplaceDTO(m model.ProductMarketplace) dto.ProductMarketplaceDTO {
+	return dto.ProductMarketplaceDTO{
+		ID:            m.ID,
+		ProductID:     m.ProductID,
+		MarketplaceID: m.MarketplaceID,
+		ExternalID:    m.ExternalID,
+		ProductURL:    m.ProductURL,
+		Price:         m.Price,
+		ListingType:   m.ListingType,
+		Status:        m.Status,
+		Active:        m.Active,
+		CreatedAt:     m.CreatedAt,
+	}
+}
+
+func (s *marketplaceService) UpdateProductMarketplace(ctx context.Context, id int64, input dto.ProductMarketplaceDTO) (*dto.ProductMarketplaceDTO, error) {
+	entity, err := s.repo.FindProductMarketplaceByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if entity == nil {
+		return nil, errors.New("product marketplace not found")
+	}
+
+	entity.ProductID = input.ProductID
+	entity.MarketplaceID = input.MarketplaceID
+	entity.ExternalID = input.ExternalID
+	entity.ProductURL = input.ProductURL
+	entity.Price = input.Price
+	entity.ListingType = input.ListingType
+	entity.Status = input.Status
+	entity.Active = input.Active
+	if err := s.repo.UpdateProductMarketplace(ctx, entity); err != nil {
+		return nil, err
+	}
+
+	result := toProductMarketplaceDTO(*entity)
+	return &result, nil
 }

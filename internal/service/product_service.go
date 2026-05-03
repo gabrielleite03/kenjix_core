@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gabrielleite03/kenjix_core/internal/dto"
+	"github.com/gabrielleite03/kenjix_core/internal/service/mercadolivre"
 	"github.com/gabrielleite03/kenjix_core/internal/service/nfe"
 	model "github.com/gabrielleite03/kenjix_domain/model"
 	"github.com/gabrielleite03/kenjix_persist/repository"
@@ -31,7 +33,7 @@ type ProductService interface {
 	DeleteProduct(ctx context.Context, id int64) error
 	ListProducts(ctx context.Context) ([]model.Product, error)
 	ListProductsByMarketplace(ctx context.Context, marketplaceParam string) ([]dto.ProductHomeDTO, error)
-	GetProductByMarketplace(ctx context.Context, id int64, marketplaceParam string) (*dto.ProductHomeDTO, error)
+	GetProductByMarketplace(ctx context.Context, id string, marketplaceParam string) (*dto.ProductHomeDTO, error)
 }
 
 // ProductService provides product-related operations
@@ -84,9 +86,10 @@ func (s *productServiceImpl) GetProduct(ctx context.Context, id int64) (*dto.Pro
 
 }
 
-func (s *productServiceImpl) GetProductByMarketplace(ctx context.Context, id int64, marketplaceParam string) (*dto.ProductHomeDTO, error) {
+func (s *productServiceImpl) GetProductByMarketplace(ctx context.Context, id string, marketplaceParam string) (*dto.ProductHomeDTO, error) {
 	marketplaces, _ := s.marketplaceDao.FindAll(ctx)
-
+	var productModel *model.Product
+	var err error
 	var marketplace *model.Marketplace
 	for i := range marketplaces {
 		if strings.EqualFold(marketplaces[i].Name, marketplaceParam) {
@@ -98,9 +101,17 @@ func (s *productServiceImpl) GetProductByMarketplace(ctx context.Context, id int
 		return nil, errors.New("Marketplace não localizado")
 	}
 
-	productModel, err := s.repo.GetByID(id)
+	idConver, err := strconv.ParseInt(id, 10, 64)
 	if err != nil {
-		return nil, err
+		productModel, err = s.repo.GetBySKU(id)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		productModel, err = s.repo.GetByID(idConver)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cat, err := s.categoryDAO.GetByID(*productModel.CategoryID)
@@ -261,6 +272,7 @@ func (s *productServiceImpl) UpdateProduct(ctx context.Context, prod *dto.Produc
 	prodDb.Properties = prod.ToModel().Properties
 	prodDb.EAN = prod.EAN
 	prodDb.NCM = prod.NCM
+	prodDb.Weight = prod.Weight
 
 	prodDb.Images = filterDeletedImages(prod.Images, prodDb.Images, prod.DeletedImages)
 
@@ -311,6 +323,121 @@ func (s *productServiceImpl) ListProducts(ctx context.Context) ([]model.Product,
 }
 
 func (s *productServiceImpl) ListProductsByMarketplace(ctx context.Context, marketplaceParam string) ([]dto.ProductHomeDTO, error) {
+
+	// 🔥 busca direta (evita loop)
+	marketplaces, _ := s.marketplaceDao.FindAll(ctx)
+	var marketplace *model.Marketplace
+	for i := range marketplaces {
+		if strings.EqualFold(marketplaces[i].Name, marketplaceParam) {
+			marketplace = &marketplaces[i]
+			break
+		}
+	}
+	if marketplace == nil {
+		return nil, errors.New("Marketplace não localizado")
+	}
+
+	// 🔥 dados base (1x só)
+	stocksWithQuantity, _ := s.stockDAO.GetGroupedByProduct()
+	products, _ := s.repo.List()
+	allCostCenters, _ := s.costCenterDAO.FindAll()
+
+	// 🔥 map de cost center (O(1))
+	costCenterMap := make(map[int64]model.CostCenter, len(allCostCenters))
+	for _, cc := range allCostCenters {
+		costCenterMap[cc.ID] = cc
+	}
+
+	productHomeDTO := make([]dto.ProductHomeDTO, 0, len(products))
+
+	for _, p := range products {
+
+		dtoItem := dto.ToProductHomeDTO(dto.FromProduct(&p))
+
+		// disponibilidade
+		s.putAvailble(&dtoItem, stocksWithQuantity)
+
+		// 🔥 UMA chamada por produto (não ideal ainda, mas já reduz custo interno)
+		allStocks, _ := s.stockDAO.GetByProduct(p.ID)
+		s.fillWithPurchaseItem(allStocks)
+
+		maxPrice := decimal.Zero
+
+		for _, stock := range allStocks {
+			if !stock.IsActive() {
+				continue
+			}
+
+			if stock.PurchaseItem.CostCenterID == nil {
+				continue
+			}
+
+			cc, ok := costCenterMap[*stock.PurchaseItem.CostCenterID]
+			if !ok {
+				continue
+			}
+
+			basePrice := stock.PurchaseItem.CostPrice
+			price := basePrice
+
+			for _, prop := range cc.Properties {
+
+				switch prop.Type {
+				case "index":
+					price = price.Add(basePrice.Mul(prop.Value.Div(decimal.NewFromInt(100))))
+				case "value":
+					price = price.Add(prop.Value)
+				}
+			}
+
+			if price.GreaterThan(maxPrice) {
+				maxPrice = price
+			}
+		}
+
+		// 🔥 evita getMaxPrice duplicado
+		dtoItem.Price = maxPrice
+
+		// 🔥 cálculo por marketplace otimizado
+		if marketplace != nil {
+			rate := marketplace.CommissionRate.Div(decimal.NewFromInt(100))
+
+			if marketplace.Name == "Mercado Livre" {
+
+				weight := decimal.NewFromFloat(0.1)
+				if dtoItem.Weight != nil {
+					weight = *dtoItem.Weight
+				}
+
+				input := mercadolivre.Input{
+					Cost:            maxPrice,
+					Operational:     decimal.Zero,
+					Weight:          weight,
+					MarginPercent:   decimal.NewFromFloat(0.01),
+					MLFeePercent:    decimal.NewFromFloat(rate.InexactFloat64()),
+					UseFreeShipping: maxPrice.GreaterThanOrEqual(decimal.NewFromFloat(79)),
+					AdsPercent:      decimal.NewFromFloat(0.01),
+				}
+
+				calculatedPrice, err := mercadolivre.CalculatePrice(input)
+				if err == nil {
+					dtoItem.Price = calculatedPrice
+				} else {
+					dtoItem.Price = maxPrice.Mul(decimal.NewFromInt(1).Add(rate))
+				}
+
+			} else {
+				dtoItem.Price = maxPrice.Mul(decimal.NewFromInt(1).Add(rate))
+			}
+		}
+
+		productHomeDTO = append(productHomeDTO, dtoItem)
+	}
+
+	return productHomeDTO, nil
+}
+
+func (s *productServiceImpl) ListProductsByMarketplaceOld(ctx context.Context, marketplaceParam string) ([]dto.ProductHomeDTO, error) {
 	marketplaces, _ := s.marketplaceDao.FindAll(ctx)
 
 	var marketplace *model.Marketplace
@@ -381,20 +508,48 @@ func (s *productServiceImpl) ListProductsByMarketplace(ctx context.Context, mark
 		productHomeDTO[i].Price = *s.getMaxPrice(prices)
 		maxPrice := *s.getMaxPrice(prices)
 		if marketplace != nil {
+			if marketplace.Name == "Mercado Livre" {
+				// simulação de regras específicas para Mercado Livre
+				var weight decimal.Decimal
 
-			rate := marketplace.CommissionRate.Div(decimal.NewFromInt(100))
-			multiplier := decimal.NewFromInt(1).Add(rate)
+				if productHomeDTO[i].Weight != nil {
+					weight = *productHomeDTO[i].Weight
+				} else {
+					weight = decimal.NewFromFloat(0.1)
+				}
+				Input := mercadolivre.Input{
+					Cost:            maxPrice,
+					Operational:     decimal.NewFromFloat(0),                                                                        // gasto interno                                                              // custo operacional fixo para produtos baratos
+					Weight:          weight,                                                                                         // peso do produto
+					MarginPercent:   decimal.NewFromFloat(0.01),                                                                     // margem de lucro
+					MLFeePercent:    decimal.NewFromFloat(marketplace.CommissionRate.Div(decimal.NewFromInt(100)).InexactFloat64()), // 16% de comissão
+					UseFreeShipping: productHomeDTO[i].Price.GreaterThanOrEqual(decimal.NewFromFloat(79.00)),                        // não está usando frete grátis
+					AdsPercent:      decimal.NewFromFloat(0.01),                                                                     // 5% de anúncio
+				}
+				calculatedPrice, err := mercadolivre.CalculatePrice(Input)
+				if err != nil {
+					// fallback para cálculo simples em caso de erro
+					rate := marketplace.CommissionRate.Div(decimal.NewFromInt(100))
+					multiplier := decimal.NewFromInt(1).Add(rate)
+					productHomeDTO[i].Price = maxPrice.Mul(multiplier)
+				} else {
+					productHomeDTO[i].Price = calculatedPrice
+				}
+			} else {
 
-			productHomeDTO[i].Price = maxPrice.Mul(multiplier)
+				rate := marketplace.CommissionRate.Div(decimal.NewFromInt(100))
+				multiplier := decimal.NewFromInt(1).Add(rate)
 
+				productHomeDTO[i].Price = maxPrice.Mul(multiplier)
+			}
 		} else {
 			productHomeDTO[i].Price = maxPrice
 		}
 
 	}
 
-	/// koto remover
-	main()
+	/// koto remover  emissão de nora fiscal
+	//main()
 
 	return productHomeDTO, nil
 }

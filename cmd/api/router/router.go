@@ -17,8 +17,7 @@ import (
 
 const (
 	AuthServiceURL = "http://localhost:7020"
-
-// AuthServiceURL = "http://koto-server01:81"
+	//AuthServiceURL = "http://koto-server01:81"
 )
 
 type Router struct {
@@ -115,9 +114,13 @@ func (r *Router) Register() {
 	http.HandleFunc("/stocks", middleware.CorsMiddleware(r.handleStocks))
 	http.HandleFunc("/stocks/movements", middleware.CorsMiddleware(r.handleStockMovements))
 
-	// MarketPlaces
+	// Marketplaces
 	http.HandleFunc("/marketplaces", middleware.CorsMiddleware(r.handleMarketplace))
 	http.HandleFunc("/marketplaces/", middleware.CorsMiddleware(r.handleMarketplaceByID))
+
+	// ProductMarketplaces
+	http.HandleFunc("/product-marketplaces", middleware.CorsMiddleware(r.handleProductMarketplace))
+	http.HandleFunc("/product-marketplaces/", middleware.CorsMiddleware(r.handleProductMarketplaceByID))
 }
 
 // mercadolivre
@@ -393,6 +396,28 @@ func (r *Router) handleMarketplaceByID(w http.ResponseWriter, req *http.Request)
 		r.authMiddleware.Middleware(r.markeplaceHandler.FindByID)(w, req)
 	case http.MethodPut:
 		r.authMiddleware.Middleware(r.markeplaceHandler.Update)(w, req)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (r *Router) handleProductMarketplace(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+		r.markeplaceHandler.FindProductMarketplace(w, req)
+	case http.MethodPost:
+		r.authMiddleware.Middleware(r.markeplaceHandler.CreateProductMarketplace)(w, req)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (r *Router) handleProductMarketplaceByID(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+		r.authMiddleware.Middleware(r.markeplaceHandler.FindByID)(w, req)
+	case http.MethodPut:
+		r.authMiddleware.Middleware(r.markeplaceHandler.UpdateProductMarketplace)(w, req)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}

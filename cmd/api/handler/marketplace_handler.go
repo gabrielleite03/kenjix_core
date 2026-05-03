@@ -111,3 +111,56 @@ func (h *MarketplaceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (h *MarketplaceHandler) CreateProductMarketplace(w http.ResponseWriter, r *http.Request) {
+	var input dto.ProductMarketplaceDTO
+
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+
+	result, err := h.service.CreateProductMarketplace(r.Context(), input)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, result)
+}
+
+func (h *MarketplaceHandler) FindProductMarketplace(w http.ResponseWriter, r *http.Request) {
+	result, err := h.service.FindAllProductMarketplace(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *MarketplaceHandler) UpdateProductMarketplace(w http.ResponseWriter, r *http.Request) {
+	id, err := extractID(r.URL.Path)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	var input dto.ProductMarketplaceDTO
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+
+	result, err := h.service.UpdateProductMarketplace(r.Context(), id, input)
+	if err != nil {
+		if err.Error() == "product marketplace not found" {
+			writeError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
