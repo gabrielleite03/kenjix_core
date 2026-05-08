@@ -1,6 +1,8 @@
 package service
 
 import (
+	"time"
+
 	"github.com/gabrielleite03/kenjix_core/internal/dto"
 	"github.com/gabrielleite03/kenjix_domain/model"
 	persist "github.com/gabrielleite03/kenjix_persist/repository"
@@ -56,9 +58,8 @@ func (s *StockService) List() ([]*dto.StockDTO, error) {
 	allWarehouse, _ := s.warehouseDAO.FindAll()
 
 	var stockDTOs []*dto.StockDTO
-	st := &dto.StockDTO{}
 	for _, stock := range stocks {
-		stockdto := st.ToStockDTO(&stock)
+		stockdto := dto.ToStockDTO(&stock)
 		product := s.findProductByID(stockdto.ProductID, allProducts)
 
 		stockdto.ProductName = &product.Name
@@ -74,7 +75,203 @@ func (s *StockService) List() ([]*dto.StockDTO, error) {
 		stockDTOs = append(stockDTOs, &stockdto)
 	}
 
+	stockKits, _ := s.findAllWithKits(allStocks, allProducts, allCostCenters)
+	for i := range stockKits {
+		stockDTOs = append(stockDTOs, &stockKits[i])
+	}
+
 	return stockDTOs, nil
+}
+
+func (s *StockService) findAllWithKits(normalStocks []model.Stock, products []model.Product, allCostCenters []model.CostCenter) ([]dto.StockDTO, error) {
+
+	result := BuildStockWithKits(dto.ToStockDTOList(normalStocks), dto.ToProductHomeDTOList(dto.FromProducts(products)), normalStocks, allCostCenters)
+	return result, nil
+}
+
+func CalculateKitQuantity(componentStocks map[int64]int, kitItems []dto.ProductKitDTO) int {
+	if len(kitItems) == 0 {
+		return 0
+	}
+
+	minQty := -1
+
+	for _, item := range kitItems {
+		componentQty := componentStocks[item.ComponentProductID]
+		possibleKits := componentQty / item.Quantity
+
+		if minQty == -1 || possibleKits < minQty {
+			minQty = possibleKits
+		}
+	}
+
+	if minQty < 0 {
+		return 0
+	}
+
+	return minQty
+}
+
+func BuildStockWithKits(
+	normalStocks []dto.StockDTO,
+	products []dto.ProductHomeDTO,
+	allStocks []model.Stock,
+	allCostCenters []model.CostCenter,
+) []dto.StockDTO {
+
+	result := make([]dto.StockDTO, 0, len(normalStocks))
+
+	componentStocks := map[int64]int{}
+	componentPriceMap := map[int64]dto.StockDTO{}
+	existing := map[int64]bool{}
+
+	for _, stock := range normalStocks {
+		componentStocks[stock.ProductID] += stock.Quantity
+		componentPriceMap[stock.ProductID] = stock
+		existing[stock.ProductID] = true
+	}
+
+	for _, product := range products {
+		if !product.IsKit {
+			continue
+		}
+
+		if existing[product.ID] {
+			continue
+		}
+
+		kitQty := CalculateKitQuantity(componentStocks, product.KitItemsDTOs)
+		if kitQty <= 0 {
+			continue
+		}
+
+		minPrice, maxPrice := CalculateKitPrices(product.KitItemsDTOs, allCostCenters, allStocks)
+
+		name := product.Name
+
+		result = append(result, dto.StockDTO{
+			ID:        0,
+			ProductID: product.ID,
+			Quantity:  kitQty,
+			Active:    product.Available && kitQty > 0,
+			UpdatedAt: time.Time{},
+			Product:   product,
+
+			ProductName: &name,
+			MinPrice:    minPrice,
+			MaxPrice:    maxPrice,
+		})
+	}
+
+	return result
+}
+
+func CalculateKitPrices(
+	kitItems []dto.ProductKitDTO,
+	allCostCenters []model.CostCenter,
+	allStocks []model.Stock,
+) (decimal.Decimal, decimal.Decimal) {
+
+	minTotal := decimal.Zero
+	maxTotal := decimal.Zero
+
+	for _, item := range kitItems {
+		componentMin, componentMax := calculateComponentPrice(
+			item.ComponentProductID,
+			allCostCenters,
+			allStocks,
+		)
+
+		qty := decimal.NewFromInt(int64(item.Quantity))
+
+		minTotal = minTotal.Add(componentMin.Mul(qty))
+
+		// se max vier zerado, assume o min
+		if componentMax.Equal(decimal.Zero) {
+			componentMax = componentMin
+		}
+
+		maxTotal = maxTotal.Add(componentMax.Mul(qty))
+	}
+
+	if minTotal.Equal(maxTotal) {
+		return minTotal, decimal.Zero
+	}
+
+	return minTotal, maxTotal
+}
+
+func calculateComponentPrice(
+	productID int64,
+	allCostCenters []model.CostCenter,
+	allStocks []model.Stock,
+) (decimal.Decimal, decimal.Decimal) {
+
+	var prices []decimal.Decimal
+
+	for _, stock := range allStocks {
+		if stock.Product.ID != productID {
+			continue
+		}
+
+		if stock.PurchaseItem.CostCenterID == nil {
+			continue
+		}
+		cc := findCostCenter(*stock.PurchaseItem.CostCenterID, allCostCenters)
+		if cc == nil {
+			continue
+		}
+
+		basePrice := stock.PurchaseItem.CostPrice
+		price := basePrice
+
+		for _, p := range cc.Properties {
+			switch p.Type {
+			case "index":
+				index := p.Value.Div(decimal.NewFromInt(100))
+				price = price.Add(basePrice.Mul(index))
+
+			case "value":
+				price = price.Add(p.Value)
+			}
+		}
+
+		prices = append(prices, price)
+	}
+
+	if len(prices) == 0 {
+		return decimal.Zero, decimal.Zero
+	}
+
+	minPrice := prices[0]
+	maxPrice := prices[0]
+
+	for _, p := range prices {
+		if p.LessThan(minPrice) {
+			minPrice = p
+		}
+		if p.GreaterThan(maxPrice) {
+			maxPrice = p
+		}
+	}
+
+	if minPrice.Equal(maxPrice) {
+		return minPrice, decimal.Zero
+	}
+
+	return minPrice, maxPrice
+}
+
+func findCostCenter(
+	costCenterID int64,
+	allCostCenter []model.CostCenter,
+) *model.CostCenter {
+	for _, c := range allCostCenter {
+		if c.ID == costCenterID {
+			return &c
+		}
+	}
+	return nil
 }
 
 func (s *StockService) fillMinPriceAndMaxPrice(

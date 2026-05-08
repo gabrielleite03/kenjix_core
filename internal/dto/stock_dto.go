@@ -24,7 +24,7 @@ type StockDTO struct {
 	MaxPrice           decimal.Decimal `json:"maxPrice,omitempty"`
 }
 
-func (d *StockDTO) ToStockDTO(s *model.Stock) StockDTO {
+func ToStockDTO(s *model.Stock) StockDTO {
 	return StockDTO{
 		ID:               s.ID,
 		ProductID:        s.Product.ID,
@@ -34,6 +34,16 @@ func (d *StockDTO) ToStockDTO(s *model.Stock) StockDTO {
 		Active:           s.Active,
 		UpdatedAt:        s.UpdatedAt,
 	}
+}
+
+func ToStockDTOList(stocks []model.Stock) []StockDTO {
+	result := make([]StockDTO, 0, len(stocks))
+
+	for _, s := range stocks {
+		result = append(result, ToStockDTO(&s))
+	}
+
+	return result
 }
 
 func (d *StockDTO) ToStockModel() model.Stock {

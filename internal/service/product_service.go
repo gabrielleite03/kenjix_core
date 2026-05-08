@@ -324,6 +324,165 @@ func (s *productServiceImpl) ListProducts(ctx context.Context) ([]model.Product,
 
 func (s *productServiceImpl) ListProductsByMarketplace(ctx context.Context, marketplaceParam string) ([]dto.ProductHomeDTO, error) {
 
+	marketplaces, _ := s.marketplaceDao.FindAll(ctx)
+	var marketplace *model.Marketplace
+	for i := range marketplaces {
+		if strings.EqualFold(marketplaces[i].Name, marketplaceParam) {
+			marketplace = &marketplaces[i]
+			break
+		}
+	}
+	if marketplace == nil {
+		return nil, errors.New("Marketplace não localizado")
+	}
+
+	stocksWithQuantity, _ := s.stockDAO.GetGroupedByProduct()
+	products, _ := s.repo.List()
+	allCostCenters, _ := s.costCenterDAO.FindAll()
+
+	costCenterMap := make(map[int64]model.CostCenter, len(allCostCenters))
+	for _, cc := range allCostCenters {
+		costCenterMap[cc.ID] = cc
+	}
+
+	stockQtyMap := make(map[int64]int, len(stocksWithQuantity))
+	for _, stock := range stocksWithQuantity {
+		stockQtyMap[stock.Product.ID] += stock.Quantity
+	}
+
+	productHomeDTO := make([]dto.ProductHomeDTO, 0, len(products))
+
+	for _, p := range products {
+
+		dtoItem := dto.ToProductHomeDTO(dto.FromProduct(&p))
+
+		// disponibilidade
+		if p.IsKit {
+			kitQty := CalculateKitQuantity(stockQtyMap, dto.ConvertToDTO(p.KitComponents))
+			dtoItem.Available = kitQty > 0
+		} else {
+			s.putAvailble(&dtoItem, stocksWithQuantity)
+		}
+
+		// preço base
+		maxPrice, err := s.calculateProductBasePrice(p, costCenterMap)
+		if err != nil {
+			maxPrice = decimal.Zero
+		}
+
+		dtoItem.Price = maxPrice
+
+		if marketplace != nil {
+			rate := marketplace.CommissionRate.Div(decimal.NewFromInt(100))
+
+			if marketplace.Name == "Mercado Livre" {
+
+				weight := decimal.NewFromFloat(0.1)
+				if dtoItem.Weight != nil {
+					weight = *dtoItem.Weight
+				}
+
+				input := mercadolivre.Input{
+					Cost:            maxPrice,
+					Operational:     decimal.Zero,
+					Weight:          weight,
+					MarginPercent:   decimal.NewFromFloat(0.01),
+					MLFeePercent:    decimal.NewFromFloat(rate.InexactFloat64()),
+					UseFreeShipping: maxPrice.GreaterThanOrEqual(decimal.NewFromFloat(79)),
+					AdsPercent:      decimal.NewFromFloat(0.01),
+				}
+
+				calculatedPrice, err := mercadolivre.CalculatePrice(input)
+				if err == nil {
+					dtoItem.Price = calculatedPrice
+				} else {
+					dtoItem.Price = maxPrice.Mul(decimal.NewFromInt(1).Add(rate))
+				}
+
+			} else {
+				dtoItem.Price = maxPrice.Mul(decimal.NewFromInt(1).Add(rate))
+			}
+		}
+
+		productHomeDTO = append(productHomeDTO, dtoItem)
+	}
+
+	return productHomeDTO, nil
+}
+
+func (s *productServiceImpl) calculateProductBasePrice(p model.Product, costCenterMap map[int64]model.CostCenter) (decimal.Decimal, error) {
+
+	if p.IsKit {
+		return s.calculateKitBasePrice(p, costCenterMap)
+	}
+
+	return s.calculateSingleProductBasePrice(p.ID, costCenterMap)
+}
+
+func (s *productServiceImpl) calculateSingleProductBasePrice(productID int64, costCenterMap map[int64]model.CostCenter) (decimal.Decimal, error) {
+
+	allStocks, err := s.stockDAO.GetByProduct(productID)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	s.fillWithPurchaseItem(allStocks)
+
+	maxPrice := decimal.Zero
+
+	for _, stock := range allStocks {
+		if !stock.IsActive() {
+			continue
+		}
+
+		if stock.PurchaseItem.CostCenterID == nil {
+			continue
+		}
+
+		cc, ok := costCenterMap[*stock.PurchaseItem.CostCenterID]
+		if !ok {
+			continue
+		}
+
+		basePrice := stock.PurchaseItem.CostPrice
+		price := basePrice
+
+		for _, prop := range cc.Properties {
+			switch prop.Type {
+			case "index":
+				price = price.Add(basePrice.Mul(prop.Value.Div(decimal.NewFromInt(100))))
+			case "value":
+				price = price.Add(prop.Value)
+			}
+		}
+
+		if price.GreaterThan(maxPrice) {
+			maxPrice = price
+		}
+	}
+
+	return maxPrice, nil
+}
+
+func (s *productServiceImpl) calculateKitBasePrice(p model.Product, costCenterMap map[int64]model.CostCenter) (decimal.Decimal, error) {
+
+	total := decimal.Zero
+
+	for _, item := range p.KitComponents {
+		componentPrice, err := s.calculateSingleProductBasePrice(item.ComponentProductID, costCenterMap)
+		if err != nil {
+			return decimal.Zero, err
+		}
+
+		qty := decimal.NewFromInt(int64(item.Quantity))
+		total = total.Add(componentPrice.Mul(qty))
+	}
+
+	return total, nil
+}
+
+func (s *productServiceImpl) ListProductsByMarketplaceOld2(ctx context.Context, marketplaceParam string) ([]dto.ProductHomeDTO, error) {
+
 	// 🔥 busca direta (evita loop)
 	marketplaces, _ := s.marketplaceDao.FindAll(ctx)
 	var marketplace *model.Marketplace

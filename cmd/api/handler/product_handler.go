@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -104,6 +105,47 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 	properties := r.FormValue("properties")
 	if properties != "" {
 		json.Unmarshal([]byte(properties), &productDTO.Properties)
+	}
+
+	// kit_items
+	kitItems := r.FormValue("kit_items")
+
+	var rawItems []map[string]interface{}
+
+	er := json.Unmarshal([]byte(kitItems), &rawItems)
+	if er != nil {
+		log.Println("erro ao converter kit_items:", er)
+		return
+	}
+
+	for _, item := range rawItems {
+
+		productIDStr, ok := item["productId"].(string)
+		if !ok {
+			log.Println("productId inválido")
+			continue
+		}
+
+		productID, err := strconv.ParseInt(productIDStr, 10, 64)
+		if err != nil {
+			log.Println("erro ao converter productId:", err)
+			continue
+		}
+
+		quantityFloat, ok := item["quantity"].(float64)
+		if !ok {
+			log.Println("quantity inválido")
+			continue
+		}
+
+		productKit := dto.ProductKitDTO{
+			ComponentProductID: productID,
+			Quantity:           int(quantityFloat),
+		}
+
+		productDTO.KitItemsDTOs = append(productDTO.KitItemsDTOs, productKit)
+		productDTO.IsKit = true
+
 	}
 
 	_, kk := h.ProductService.CreateProduct(r.Context(), &productDTO)

@@ -33,6 +33,8 @@ type ProductDTO struct {
 	ImageFiles             []*multipart.FileHeader `json:"image_files,omitempty"`
 	Videos                 []ProductVideoDTO       `json:"videos,omitempty"`
 	ProductMarketplaceDTOs []ProductMarketplaceDTO `json:"product_marketplaces,omitempty"`
+	IsKit                  bool                    `json:"is_kit"` // indica se é um kit (produto pai)
+	KitItemsDTOs           []ProductKitDTO         `json:"kit_items,omitempty"`
 }
 
 type ProductMarketplaceDTO struct {
@@ -72,25 +74,49 @@ type ProductVideoDTO struct {
 	Provider  *string `json:"provider,omitempty"`
 }
 
+type ProductKitDTO struct {
+	ID                 int64 `json:"id"`
+	ProductID          int64 `json:"product_id"`
+	ComponentProductID int64 `json:"productId"`
+	Quantity           int   `json:"quantity"`
+}
+
+func ConvertToDTO(items []model.ProductKit) []ProductKitDTO {
+	result := make([]ProductKitDTO, 0, len(items))
+
+	for _, i := range items {
+		result = append(result, ProductKitDTO{
+			ID:                 i.ID,
+			ProductID:          i.ProductID,
+			ComponentProductID: i.ComponentProductID,
+			Quantity:           i.Quantity,
+		})
+	}
+
+	return result
+}
+
 func FromProduct(m *model.Product) *ProductDTO {
 	if m == nil {
 		return nil
 	}
 
 	dto := &ProductDTO{
-		ID:          m.ID,
-		Name:        m.Name,
-		SKU:         m.SKU,
-		Price:       m.Price,
-		Brand:       m.Marca,
-		Weight:      m.Weight,
-		Description: m.Description,
-		Active:      m.Active,
-		Volume:      m.Volume,
-		CategoryID:  m.CategoryID,
-		Category:    (*CategoryDTO)(m.Category),
-		EAN:         m.EAN,
-		NCM:         m.NCM,
+		ID:           m.ID,
+		Name:         m.Name,
+		SKU:          m.SKU,
+		Price:        m.Price,
+		Brand:        m.Marca,
+		Weight:       m.Weight,
+		Description:  m.Description,
+		Active:       m.Active,
+		Volume:       m.Volume,
+		CategoryID:   m.CategoryID,
+		Category:     (*CategoryDTO)(m.Category),
+		EAN:          m.EAN,
+		NCM:          m.NCM,
+		KitItemsDTOs: ConvertToDTO(m.KitComponents),
+		IsKit:        m.IsKit,
 	}
 
 	for _, p := range m.Properties {
@@ -140,24 +166,39 @@ func FromProduct(m *model.Product) *ProductDTO {
 	return dto
 }
 
+func FromProducts(products []model.Product) []ProductDTO {
+	result := make([]ProductDTO, 0, len(products))
+
+	for i := range products {
+		dto := FromProduct(&products[i])
+		if dto != nil {
+			result = append(result, *dto)
+		}
+	}
+
+	return result
+}
+
 func (d *ProductDTO) ToModel() *model.Product {
 	if d == nil {
 		return nil
 	}
 
 	m := &model.Product{
-		ID:          d.ID,
-		Name:        d.Name,
-		SKU:         d.SKU,
-		Price:       d.Price,
-		Marca:       d.Brand,
-		Description: d.Description,
-		Active:      d.Active,
-		Volume:      d.Volume,
-		CategoryID:  d.CategoryID,
-		NCM:         d.NCM,
-		EAN:         d.EAN,
-		Weight:      d.Weight,
+		ID:            d.ID,
+		Name:          d.Name,
+		SKU:           d.SKU,
+		Price:         d.Price,
+		Marca:         d.Brand,
+		Description:   d.Description,
+		Active:        d.Active,
+		Volume:        d.Volume,
+		CategoryID:    d.CategoryID,
+		NCM:           d.NCM,
+		EAN:           d.EAN,
+		Weight:        d.Weight,
+		IsKit:         d.IsKit,
+		KitComponents: ProductKitDTOsToModel(d.KitItemsDTOs),
 	}
 
 	for _, p := range d.Properties {
@@ -223,6 +264,8 @@ type ProductHomeDTO struct {
 	Available              bool                    `json:"available"`
 	Properties             []ProductPropertyDTO    `json:"properties,omitempty"`
 	ProductMarketplaceDTOs []ProductMarketplaceDTO `json:"product_marketplaces,omitempty"`
+	IsKit                  bool                    `json:"is_kit"` // indica se é um kit (produto pai)
+	KitItemsDTOs           []ProductKitDTO         `json:"kit_items,omitempty"`
 }
 
 type ProductPriceDTO struct {
@@ -280,7 +323,21 @@ func ToProductHomeDTO(p *ProductDTO) ProductHomeDTO {
 		CurrentIndex:           0,
 		Properties:             p.Properties,
 		ProductMarketplaceDTOs: p.ProductMarketplaceDTOs,
+		KitItemsDTOs:           p.KitItemsDTOs,
+		IsKit:                  p.IsKit,
+		Available:              p.Active,
 	}
+}
+
+func ToProductHomeDTOList(products []ProductDTO) []ProductHomeDTO {
+	result := make([]ProductHomeDTO, 0, len(products))
+
+	for i := range products {
+		dto := ToProductHomeDTO(&products[i])
+		result = append(result, dto)
+	}
+
+	return result
 }
 
 func GetPrice(product ProductDTO, marketplaceID int64) decimal.Decimal {
@@ -292,4 +349,48 @@ func GetPrice(product ProductDTO, marketplaceID int64) decimal.Decimal {
 		}
 	}
 	return price
+}
+
+func ProductKitToDTO(m model.ProductKit) ProductKitDTO {
+	return ProductKitDTO{
+		ID:                 m.ID,
+		ProductID:          m.ProductID,
+		ComponentProductID: m.ComponentProductID,
+		Quantity:           m.Quantity,
+	}
+}
+
+func ProductKitsToDTO(items []model.ProductKit) []ProductKitDTO {
+	if len(items) == 0 {
+		return nil
+	}
+
+	dtos := make([]ProductKitDTO, 0, len(items))
+	for _, item := range items {
+		dtos = append(dtos, ProductKitToDTO(item))
+	}
+
+	return dtos
+}
+
+func ProductKitDTOToModel(d ProductKitDTO) model.ProductKit {
+	return model.ProductKit{
+		ID:                 d.ID,
+		ProductID:          d.ProductID,
+		ComponentProductID: d.ComponentProductID,
+		Quantity:           d.Quantity,
+	}
+}
+
+func ProductKitDTOsToModel(items []ProductKitDTO) []model.ProductKit {
+	if len(items) == 0 {
+		return nil
+	}
+
+	models := make([]model.ProductKit, 0, len(items))
+	for _, item := range items {
+		models = append(models, ProductKitDTOToModel(item))
+	}
+
+	return models
 }
