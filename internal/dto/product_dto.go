@@ -266,6 +266,7 @@ type ProductHomeDTO struct {
 	ProductMarketplaceDTOs []ProductMarketplaceDTO `json:"product_marketplaces,omitempty"`
 	IsKit                  bool                    `json:"is_kit"` // indica se é um kit (produto pai)
 	KitItemsDTOs           []ProductKitDTO         `json:"kit_items,omitempty"`
+	StockQuantity          *decimal.Decimal        `json:"stockQuantity,omitempty"`
 }
 
 type ProductPriceDTO struct {

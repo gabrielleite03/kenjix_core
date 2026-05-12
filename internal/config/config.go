@@ -12,7 +12,7 @@ type Config struct {
 func Load() *Config {
 	return &Config{
 		ClientID:     os.Getenv("ML_CLIENT_ID"),
-		ClientSecret: os.Getenv("ML_CLIENT_SECRET"),
+		ClientSecret: os.Getenv("ML_SECRET_ID"),
 		SellerID:     os.Getenv("ML_SELLER_ID"),
 		DBUrl:        os.Getenv("DATABASE_URL"),
 	}

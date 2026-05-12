@@ -1,70 +1,123 @@
 package handler
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
-	"io"
+	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gabrielleite03/kenjix_core/internal/config"
 	"github.com/gabrielleite03/kenjix_core/internal/mercadolivre"
+	ml "github.com/gabrielleite03/kenjix_core/internal/service/mercadolivre"
 )
 
 type MercadolivreHandler struct {
-	service *mercadolivre.AuthService
+	authService  *mercadolivre.AuthService
+	OrderService ml.OrderService
 }
 
-func NewMercadolivreHandler(service *mercadolivre.AuthService) *MercadolivreHandler {
-	return &MercadolivreHandler{service: service}
+type WebhookPayload struct {
+	Resource string `json:"resource"`
+	Topic    string `json:"topic"`
+	UserID   int64  `json:"user_id"`
 }
 
-func (h *MercadolivreHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
+func NewMercadolivreHandler(service *mercadolivre.AuthService, orderService ml.OrderService) *MercadolivreHandler {
+	return &MercadolivreHandler{authService: service, OrderService: orderService}
+}
+
+func (h *MercadolivreHandler) GetTGHandler(w http.ResponseWriter, r *http.Request) {
+	mercadolivre.RedirectToMercadoLivreAuth(w, r)
+}
+
+func (h *MercadolivreHandler) RedirectHandler(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
-
-	token, err := mercadolivre.GetToken(
-		r.Context(),
-		config.Load().ClientID,
-		config.Load().ClientSecret,
-		code,
-		"http://localhost:8080/callback",
-	)
-
-	if err != nil {
-		http.Error(w, err.Error(), 500)
+	if code == "" {
+		http.Error(w, "code não encontrado", http.StatusBadRequest)
 		return
 	}
 
-	fmt.Println("ACCESS TOKEN:", token.AccessToken)
-	fmt.Println("REFRESH TOKEN:", token.RefreshToken)
+	cfg := config.Load()
 
-	w.Write([]byte("Token gerado com sucesso!"))
+	token, err := mercadolivre.GetToken(
+		r.Context(),
+		cfg.ClientID,
+		cfg.ClientSecret,
+		code,
+		"https://kenjipet.com.br/redirect_mercadolivre",
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.authService.SaveToken(r.Context(), token); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	fmt.Fprintf(w, `{
+		"status": "ok",
+		"user_id": %d,
+		"expires_at": %q
+	}`, token.UserID, token.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"))
 }
 
-func saveEnv(key, value string) error {
-	file, err := os.OpenFile(".env", os.O_RDWR|os.O_CREATE, 0644)
+func (h *MercadolivreHandler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	var payload WebhookPayload
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "payload inválido", http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	if payload.Topic != "orders" {
+		return
+	}
+
+	//	go h.processWebhook(payload)
+
+	h.processWebhook(payload)
+}
+
+func (h *MercadolivreHandler) processWebhook(payload WebhookPayload) {
+	orderID := extractOrderID(payload.Resource)
+	if orderID == "" {
+		log.Println("id inválido:", payload.Resource)
+		return
+	}
+
+	client := &mercadolivre.Client{
+		BaseURL: "https://api.mercadolibre.com",
+		Auth:    h.authService,
+		UserID:  payload.UserID,
+	}
+
+	order, err := client.GetOrderByID(context.Background(), orderID)
 	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	content, _ := io.ReadAll(file)
-
-	lines := strings.Split(string(content), "\n")
-	found := false
-
-	for i, line := range lines {
-		if strings.HasPrefix(line, key+"=") {
-			lines[i] = key + "=" + value
-			found = true
-		}
+		log.Println("erro ao buscar pedido:", err)
+		return
 	}
 
-	if !found {
-		lines = append(lines, key+"="+value)
+	if err := h.OrderService.ProcessOrder(order); err != nil {
+		log.Println("erro ao processar pedido:", err)
+	}
+}
+
+func extractOrderID(resource string) string {
+	parts := strings.Split(resource, "/")
+	if len(parts) == 0 {
+		return ""
 	}
 
-	newContent := strings.Join(lines, "\n")
-
-	return os.WriteFile(".env", []byte(newContent), 0644)
+	return parts[len(parts)-1]
 }

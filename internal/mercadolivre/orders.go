@@ -2,12 +2,6 @@ package mercadolivre
 
 import "context"
 
-type Order struct {
-	ID     int64   `json:"id"`
-	Status string  `json:"status"`
-	Total  float64 `json:"total_amount"`
-}
-
 func (c *Client) GetOrders(ctx context.Context, sellerID string) ([]Order, error) {
 	var resp struct {
 		Results []Order `json:"results"`

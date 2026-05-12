@@ -360,6 +360,8 @@ func (s *productServiceImpl) ListProductsByMarketplace(ctx context.Context, mark
 		if p.IsKit {
 			kitQty := CalculateKitQuantity(stockQtyMap, dto.ConvertToDTO(p.KitComponents))
 			dtoItem.Available = kitQty > 0
+			qty := decimal.NewFromInt(int64(kitQty))
+			dtoItem.StockQuantity = &qty
 		} else {
 			s.putAvailble(&dtoItem, stocksWithQuantity)
 		}
@@ -858,6 +860,8 @@ func (s *productServiceImpl) putAvailble(
 
 		if stock.Product.ID == productHomeDTO.ID {
 			productHomeDTO.Available = stock.Quantity > 0
+			qty := decimal.NewFromInt(int64(stock.Quantity))
+			productHomeDTO.StockQuantity = &qty
 			return
 		}
 	}

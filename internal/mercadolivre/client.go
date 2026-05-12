@@ -3,21 +3,28 @@ package mercadolivre
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 )
 
 type Client struct {
 	BaseURL string
 	Auth    *AuthService
+	UserID  int64
 }
 
 func (c *Client) Get(ctx context.Context, path string, out interface{}) error {
-	token, err := c.Auth.GetValidToken(ctx)
+	token, err := c.Auth.GetValidToken(ctx, c.UserID)
 	if err != nil {
 		return err
 	}
 
-	req, _ := http.NewRequestWithContext(ctx, "GET", c.BaseURL+path, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", c.BaseURL+path, nil)
+	if err != nil {
+		return err
+	}
+
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -26,5 +33,11 @@ func (c *Client) Get(ctx context.Context, path string, out interface{}) error {
 	}
 	defer resp.Body.Close()
 
-	return json.NewDecoder(resp.Body).Decode(out)
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("ML error: %s", string(body))
+	}
+
+	return json.Unmarshal(body, out)
 }

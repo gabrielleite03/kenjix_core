@@ -12,6 +12,7 @@ import (
 	"github.com/gabrielleite03/kenjix_core/internal/config"
 	"github.com/gabrielleite03/kenjix_core/internal/mercadolivre"
 	"github.com/gabrielleite03/kenjix_core/internal/service"
+	ml "github.com/gabrielleite03/kenjix_core/internal/service/mercadolivre"
 	persist "github.com/gabrielleite03/kenjix_persist/repository"
 )
 
@@ -55,7 +56,8 @@ func NewRouter() *Router {
 		purchaseHandler:           handler.NewPurchaseHandler(),
 		stockHandler:              handler.NewStockHandler(),
 		markeplaceHandler:         handler.NewMarketplaceHandler(service.NewMarketplaceService(persist.NewMarketplaceDAO())),
-		mercadolivreHandler:       handler.NewMercadolivreHandler(mercadolivre.NewAuthService(config.Load().ClientID, config.Load().ClientSecret)),
+		mercadolivreHandler: handler.NewMercadolivreHandler(mercadolivre.NewAuthService(config.Load().ClientID, config.Load().ClientSecret, persist.NewMLTokensDAO()),
+			ml.NewOrderService()),
 	}
 }
 
@@ -72,8 +74,12 @@ func (r *Router) Register() {
 		fmt.Fprint(w, `{"status":"ok"}`)
 	})
 
-	// Login mercadolivre
-	http.HandleFunc("/redirect_mercadolivre", middleware.CorsMiddleware(r.handleMercadolivre))
+	// Login / OAuth Mercado Livre
+	http.HandleFunc("/tg_mercadolivre", middleware.CorsMiddleware(r.handleMercadolivreTG))
+	http.HandleFunc("/redirect_mercadolivre", middleware.CorsMiddleware(r.handleMercadolivreRedirect))
+
+	// Webhook notificações Mercado Livre
+	http.HandleFunc("/callback_mercadolivre", middleware.CorsMiddleware(r.handleMercadolivreCallback))
 
 	// Product
 	http.HandleFunc("/products", middleware.CorsMiddleware(r.handleProducts))
@@ -123,12 +129,28 @@ func (r *Router) Register() {
 	http.HandleFunc("/product-marketplaces/", middleware.CorsMiddleware(r.handleProductMarketplaceByID))
 }
 
-// mercadolivre
-func (r *Router) handleMercadolivre(w http.ResponseWriter, req *http.Request) {
+func (r *Router) handleMercadolivreTG(w http.ResponseWriter, req *http.Request) {
 	switch req.Method {
 	case http.MethodGet:
-		r.mercadolivreHandler.CallbackHandler(w, req)
+		r.mercadolivreHandler.GetTGHandler(w, req)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
 
+func (r *Router) handleMercadolivreRedirect(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+		r.mercadolivreHandler.RedirectHandler(w, req)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (r *Router) handleMercadolivreCallback(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodPost:
+		r.mercadolivreHandler.CallbackHandler(w, req)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
